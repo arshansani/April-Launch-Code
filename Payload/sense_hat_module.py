@@ -1,12 +1,20 @@
 import logging
 from sense_hat import SenseHat
 
-sense = SenseHat()
+# Attempt to create a SenseHat instance
+try:
+    sense = SenseHat()
+    sense_hat_available = True
+except Exception as e:
+    logging.error(f"Sense HAT initialization failed: {e}")
+    sense_hat_available = False
 
 # Set Constants
 g = 9.80665  # m/s^2
 
 def get_accelerometer_data():
+    if not sense_hat_available:
+        return {"x": "", "y": "", "z": ""}
     try:
         # Get accelerometer data in Gs
         acceleration = sense.get_accelerometer_raw()
@@ -21,6 +29,8 @@ def get_accelerometer_data():
 
 # DEPRACATED, GIVES BAD READINGS
 def get_compass_data():
+    if not sense_hat_available:
+        return ""
     try:
         # Get compass data in degrees
         north = sense.get_compass()
@@ -30,6 +40,8 @@ def get_compass_data():
         return ""
 
 def get_gyroscope_data():
+    if not sense_hat_available:
+        return {"x": "", "y": "", "z": ""}
     try:
         # Get gyroscope data in radians per second
         gyro = sense.get_gyroscope_raw()
@@ -44,6 +56,8 @@ def get_gyroscope_data():
 
 # DEPRACATED, GIVES BAD READINGS
 def get_orientation_data():
+    if not sense_hat_available:
+        return ""
     try:
         # Get orientation data in degrees
         gyro = sense.get_orientation_degrees()
@@ -57,6 +71,8 @@ def get_orientation_data():
         return ""
 
 def get_humidity():
+    if not sense_hat_available:
+        return ""
     try:
         # Get humidity data in percentage
         humidity = sense.get_humidity()
@@ -66,6 +82,8 @@ def get_humidity():
         return ""
 
 def get_pressure():
+    if not sense_hat_available:
+        return ""
     try:
         # Get pressure data in millibars
         pressure = sense.get_pressure()
@@ -77,6 +95,8 @@ def get_pressure():
         return ""
 
 def get_temperature_from_humidity():
+    if not sense_hat_available:
+        return ""
     try:
         # Get temperature data in degrees Celsius from the humidity sensor
         temperature = round(sense.get_temperature_from_humidity(), 2)
@@ -86,6 +106,8 @@ def get_temperature_from_humidity():
         return ""
     
 def get_temperature_from_pressure():
+    if not sense_hat_available:
+        return ""
     try:
         # Get temperature data in degrees Celsius from the pressure sensor
         temperature = round(sense.get_temperature_from_pressure(), 2)
