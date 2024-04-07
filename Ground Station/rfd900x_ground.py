@@ -21,7 +21,7 @@ mav = mavutil.mavlink_connection(serial_port, baud=baud_rate)
 filename = get_next_filename("data_{}.csv")
 
 # Write the header to the CSV file
-header = ['Timestamp', 'Accelerometer X (m/s^2)', 'Accelerometer Y (m/s^2)', 'Accelerometer Z (m/s^2)', 'Gyroscope X (rad/s)', 'Gyroscope Y (rad/s)', 'Gyroscope Z (rad/s)', 'Humidity (%)', 'Pressure (mbar)', 'Temperature from Humidity (C)', 'Temperature from Pressure (C)', 'Thermocouple Temperature (C)']
+header = ['Timestamp', 'Accelerometer X (m/s^2)', 'Accelerometer Y (m/s^2)', 'Accelerometer Z (m/s^2)', 'Gyroscope X (rad/s)', 'Gyroscope Y (rad/s)', 'Gyroscope Z (rad/s)', 'Humidity (%)', 'Pressure (mbar)', 'Temperature from Humidity (C)', 'Temperature from Pressure (C)', 'Thermocouple Temperature (C)', 'Latitude', 'Longitude', 'Altitude (m)', 'Speed (m/s)', 'Heading']
 write_data_to_csv(dict(zip(header, header)), filename)
 
 # Initialize variables to store the received data
@@ -40,36 +40,40 @@ def handle_message(msg):
         logging.debug("Heartbeat received!")
         logging.debug("Message contents: %s", msg.to_dict())
     elif msg.get_type() == 'DEBUG_VECT':
-        logging.info("Debug vector received!")
+        logging.info(f"Debug vector received! {msg.name}")
         logging.debug("Message contents: %s", msg.to_dict())
 
         # Extract the relevant data from the message
         # Vectors can only contain 3 values, so we need to keep track of which vector we are receiving
-        if received_vectors == 0:
-            data['Timestamp'] = msg.time_usec
-            data['Accelerometer_X'] = msg.x
-            data['Accelerometer_Y'] = msg.y
-            data['Accelerometer_Z'] = msg.z
-        elif received_vectors == 1:
-            data['Gyroscope_X'] = msg.x
-            data['Gyroscope_Y'] = msg.y
-            data['Gyroscope_Z'] = msg.z
-        elif received_vectors == 2:
-            data['Humidity'] = msg.x
-            data['Pressure'] = msg.y
-            data['Temperature_Humidity'] = msg.z
-        elif received_vectors == 3:
-            data['Temperature_Pressure'] = msg.x
-            data['Temperature_Thermocouple'] = msg.y
-            data['Latitude'] = msg.z
-        elif received_vectors == 4:
-            data['Longitude'] = msg.x
-            data['Altitude'] = msg.y
-            data['Speed'] = msg.z
-        elif received_vectors == 5:
-            data['Heading'] = msg.x
-
-        received_vectors += 1
+        if msg.name == "Vector_0":
+            data['Timestamp'] = msg.x
+            data['Accelerometer_X'] = msg.y
+            data['Accelerometer_Y'] = msg.z
+            received_vectors = 1
+        elif msg.name == "Vector_1":
+            data['Accelerometer_Z'] = msg.x
+            data['Gyroscope_X'] = msg.y
+            data['Gyroscope_Y'] = msg.z
+            received_vectors = 2
+        elif msg.name == "Vector_2":
+            data['Gyroscope_Z'] = msg.x
+            data['Humidity'] = msg.y
+            data['Pressure'] = msg.z
+            received_vectors = 3
+        elif msg.name == "Vector_3":
+            data['Temperature_Humidity'] = msg.x
+            data['Temperature_Pressure'] = msg.y
+            data['Temperature_Thermocouple'] = msg.z
+            received_vectors = 4
+        elif msg.name == "Vector_4":
+            data['Latitude'] = msg.x
+            data['Longitude'] = msg.y
+            data['Altitude'] = msg.z
+            received_vectors = 5
+        elif msg.name == "Vector_5":
+            data['Speed'] = msg.x
+            data['Heading'] = msg.y
+            received_vectors = 6
 
         # Check if all four vectors have been received
         if received_vectors == 6:
@@ -86,6 +90,36 @@ def handle_message(msg):
 
     else:
         logging.warning("Unknown message type received: %s", msg.get_type())
+
+# API route to get the most recent data
+@app.route('/api/data', methods=['GET'])
+def get_most_recent_data():
+    global most_recent_data, most_recent_heartbeat_status
+    response_data = {
+        'Timestamp': most_recent_data.get('Timestamp', 0),
+        'Accelerometer_X': most_recent_data.get('Accelerometer_X', 0),
+        'Accelerometer_Y': most_recent_data.get('Accelerometer_Y', 0),
+        'Accelerometer_Z': most_recent_data.get('Accelerometer_Z', 0),
+        'Gyroscope_X': most_recent_data.get('Gyroscope_X', 0),
+        'Gyroscope_Y': most_recent_data.get('Gyroscope_Y', 0),
+        'Gyroscope_Z': most_recent_data.get('Gyroscope_Z', 0),
+        'Humidity': most_recent_data.get('Humidity', 0),
+        'Pressure': most_recent_data.get('Pressure', 0),
+        'Temperature_Humidity': most_recent_data.get('Temperature_Humidity', 0),
+        'Temperature_Pressure': most_recent_data.get('Temperature_Pressure', 0),
+        'Temperature_Thermocouple': most_recent_data.get('Temperature_Thermocouple', 0),
+        'Latitude': most_recent_data.get('Latitude', 0),
+        'Longitude': most_recent_data.get('Longitude', 0),
+        'Altitude': most_recent_data.get('Altitude', 0),
+        'Speed': most_recent_data.get('Speed', 0),
+        'Heading': most_recent_data.get('Heading', 0),
+        'Heartbeat_Status': most_recent_heartbeat_status
+    }
+    logging.info(f"Data Sent: {response_data}")
+    return response_data
+
+def run_flask_app():
+    app.run()
 
 # Main loop
 def main():
@@ -130,36 +164,6 @@ def main():
 
     # Close the MAVLink connection when done
     mav.close()
-
-# API route to get the most recent data
-@app.route('/api/data', methods=['GET'])
-def get_most_recent_data():
-    global most_recent_data, most_recent_heartbeat_status
-    response_data = {
-        'Timestamp': most_recent_data.get('Timestamp', 0),
-        'Accelerometer_X': most_recent_data.get('Accelerometer_X', 0),
-        'Accelerometer_Y': most_recent_data.get('Accelerometer_Y', 0),
-        'Accelerometer_Z': most_recent_data.get('Accelerometer_Z', 0),
-        'Gyroscope_X': most_recent_data.get('Gyroscope_X', 0),
-        'Gyroscope_Y': most_recent_data.get('Gyroscope_Y', 0),
-        'Gyroscope_Z': most_recent_data.get('Gyroscope_Z', 0),
-        'Humidity': most_recent_data.get('Humidity', 0),
-        'Pressure': most_recent_data.get('Pressure', 0),
-        'Temperature_Humidity': most_recent_data.get('Temperature_Humidity', 0),
-        'Temperature_Pressure': most_recent_data.get('Temperature_Pressure', 0),
-        'Temperature_Thermocouple': most_recent_data.get('Temperature_Thermocouple', 0),
-        'Latitude': most_recent_data.get('Latitude', 0),
-        'Longitude': most_recent_data.get('Longitude', 0),
-        'Altitude': most_recent_data.get('Altitude', 0),
-        'Speed': most_recent_data.get('Speed', 0),
-        'Heading': most_recent_data.get('Heading', 0),
-        'Heartbeat_Status': most_recent_heartbeat_status
-    }
-    logging.info(f"Data Sent: {response_data}")
-    return response_data
-
-def run_flask_app():
-    app.run()
 
 if __name__ == "__main__":
     # Start the Flask app in a separate thread

@@ -4,9 +4,6 @@ import logging
 import threading
 from pymavlink import mavutil
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
 # Configure the serial connection
 serial_port = '/dev/ttyUSB0'  # Replace with the appropriate USB port
 baud_rate = 57600  # Set the baud rate according to your RFD900x configuration
@@ -57,7 +54,7 @@ def send_data(data):
             vector_data.append(0.0)
 
         mav.mav.debug_vect_send(
-            name=f"Data_Vector_{i}".encode(),
+            name=f"Vector_{i}".encode(),
             time_usec=timestamp,
             x=vector_data[0],
             y=vector_data[1],
@@ -87,43 +84,44 @@ def communication_loop():
             logging.error(f"Error: {e}")
 
         # Wait for a short interval before the next iteration
-        time.sleep(0.1)
+        time.sleep(1)
 
 # Main loop
 def main():
     # Configure logging
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
-    # Test data
-    test_data = {
-        'Timestamp': '2023-06-08 12:34:56',
-        'Accelerometer_X': 1.23,
-        'Accelerometer_Y': 4.56,
-        'Accelerometer_Z': 7.89,
-        'Gyroscope_X': 10.11,
-        'Gyroscope_Y': 12.13,
-        'Gyroscope_Z': 14.15,
-        'Humidity': 50.0,
-        'Pressure': 1013.25,
-        'Temperature_Humidity': 25.5,
-        'Temperature_Pressure': 26.0,
-        'Temperature_Thermocouple': 27.5,
-        'Latitude': '30.2672',
-        'Longitude': '-97.7431',
-        'Altitude': '0.0',
-        'Speed': '0.0',
-        'Heading': '0.0'
-    }
-
     # Start the communication loop
     comm_thread = threading.Thread(target=communication_loop)
     comm_thread.start()
 
-    # Send test data
-    send_data(test_data)
+    while True:
+        # Test data
+        test_data = {
+            'Timestamp': int(time.time() * 1000) % (2**32),
+            'Accelerometer_X': random.uniform(-10, 10),
+            'Accelerometer_Y': random.uniform(-10, 10),
+            'Accelerometer_Z': random.uniform(-10, 10),
+            'Gyroscope_X': random.uniform(-5, 5),
+            'Gyroscope_Y': random.uniform(-5, 5),
+            'Gyroscope_Z': random.uniform(-5, 5),
+            'Humidity': random.uniform(20, 80),
+            'Pressure': random.uniform(900, 1100),
+            'Temperature_Humidity': random.uniform(10, 40),
+            'Temperature_Pressure': random.uniform(10, 40),
+            'Temperature_Thermocouple': random.uniform(-50, 40),
+            'Latitude': random.uniform(28.0, 34.0),
+            'Longitude': random.uniform(-104.0, -96.0),
+            'Altitude': random.uniform(0, 100000),
+            'Speed': random.uniform(0, 10),
+            'Heading': random.uniform(0, 360)
+        }
 
-    # Wait for a few seconds before exiting
-    time.sleep(5)
+        # Send test data
+        send_data(test_data)
+
+        # Wait for a few seconds before exiting
+        time.sleep(5)
 
 if __name__ == "__main__":
     main()

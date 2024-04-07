@@ -18,6 +18,7 @@ from tkintermapview import TkinterMapView
 import requests
 from queue import Queue
 from threading import Thread
+import math
 
 _URL = "http://localhost:5000/api/data"
 data_queue = Queue()
@@ -90,7 +91,11 @@ class TelemetryUI:
         self.heartbeat_indicator = ttk.Label(master, text="●", font=("Arial", 24, "bold"))
         self.cutdown_button = tk.Button(master, text="CUTDOWN", command=self.confirm_cutdown, bg="red", fg="white", font=("Arial", 14, "bold"))
         self.mission_status_label = ttk.Label(master, text="MISSION IN PROGRESS", foreground="green")
-        
+        self.compass_widget = CompassWidget(master, size=200, max_speed=50)
+        self.compass_label = ttk.Label(master, text="Heading:")
+        self.velocity_label = ttk.Label(master, text="Velocity: 0 m/s")
+        self.heading_label = ttk.Label(master, text="Heading: 0°")
+
         # Layout widgets
         self.polling_rate_label.grid(row=0, column=0, sticky="w", padx=3, pady=10)
         self.polling_rate_entry.grid(row=0, column=1, padx=5)
@@ -98,16 +103,20 @@ class TelemetryUI:
         self.polling_rate_value.grid(row=0, column=3, sticky="w")
         self.raw_data_label.grid(row=1, column=0, sticky="w", pady=(20, 0), padx=3)
         self.raw_data_text.grid(row=2, column=0, columnspan=4, sticky="n", padx=5)
-        self.heartbeat_label.grid(row=3, column=0, sticky="w", padx=3, pady=(10, 0))
-        self.heartbeat_status.grid(row=3, column=1, sticky="w", pady=(10, 0))
-        self.heartbeat_indicator.grid(row=3, column=2, sticky="w", pady=(10, 0), padx=(10, 0))
+        self.heartbeat_label.grid(row=5, column=0, sticky="w", padx=3, pady=(10, 0))
+        self.heartbeat_status.grid(row=5, column=1, sticky="w", pady=(10, 0))
+        self.heartbeat_indicator.grid(row=5, column=2, sticky="w", pady=(10, 0), padx=(10, 0))
         self.cutdown_button.grid(row=6, column=1, padx=5, pady=(10, 0), sticky="s")
         self.mission_status_label.grid(row=7, column=1, padx=5, pady=(0, 10), sticky="n")
         self.map_label.grid(row=0, column=4, sticky="w", padx=(20, 0))
         self.map_frame.grid(row=1, column=4, rowspan=4, sticky="nsew", padx=(20, 0))
         self.altitude_label.grid(row=5, column=4, sticky="w", padx=(20, 0))
         self.altitude_canvas.get_tk_widget().grid(row=6, column=4, sticky="nsew", padx=(20, 0))
-
+        self.compass_widget.grid(row=4, column=0, columnspan=2, padx=5, pady=(0, 10))
+        self.compass_label.grid(row=3, column=0, sticky="w", padx=3, pady=(10, 0))
+        self.velocity_label.grid(row=4, column=3, sticky="w", padx=(10, 0))
+        self.heading_label.grid(row=4, column=2, sticky="w", padx=(10, 0))
+        
         # Configure grid weights
         master.grid_rowconfigure(2, weight=1)
         master.grid_rowconfigure(6, weight=1)
@@ -137,7 +146,7 @@ class TelemetryUI:
             self.temperature_pressure = round(data["Temperature_Pressure"],0)
             self.temperature_thermocouple = round(data["Temperature_Thermocouple"],0)
             self.coordinates = (round(data["Latitude"],6), round(data["Longitude"],6))
-            self.altitude = round(data["Altitude"],0)
+            self.altitude = round(data["Altitude"] * 3.28084,0)
             self.altitude_data.append(self.altitude)
             self.speed = round(data["Speed"],2)
             self.heading = round(data["Heading"],2)
@@ -176,7 +185,7 @@ class TelemetryUI:
         self.raw_data_text.insert(tk.END, f"Coordinates: {round(self.coordinates[0],6)}, {round(self.coordinates[1],6)}\n")
         self.raw_data_text.insert(tk.END, f"Altitude: {round(self.altitude,0)} ft\n")
         self.raw_data_text.insert(tk.END, f"Speed: {round(self.speed,2)} m/s\n")
-        self.raw_data_text.insert(tk.END, f"Heading: {round(self.heading,2)}\n")
+        self.raw_data_text.insert(tk.END, f"Heading: {round(self.heading,2)}°\n")
     
     def update_map_display(self):
         try:
@@ -256,6 +265,9 @@ class TelemetryUI:
         self.update_map_display()
         self.update_altitude_log_display()
         self.update_heartbeat_display(self.heartbeat)
+        self.compass_widget.update_compass(self.heading, self.speed)
+        self.heading_label.config(text=f"Heading: {self.heading}°")
+        self.velocity_label.config(text=f"Velocity: {self.speed} m/s")
 
         # Schedule the next update based on the polling rate
         self.master.after(self.polling_rate, self.poll_data)
@@ -291,6 +303,48 @@ class TelemetryUI:
             else:
                 self.heartbeat_indicator.config(foreground="red")
             self.blink_event = self.heartbeat_indicator.after(500, self.blink_heartbeat_indicator)
+
+class CompassWidget(tk.Canvas):
+    def __init__(self, master, size=200, max_speed=50, *args, **kwargs):
+        super().__init__(master, width=size, height=size, *args, **kwargs)
+        self.size = size
+        self.max_speed = max_speed
+        self.heading = 0
+        self.speed = 0
+
+    def update_compass(self, heading, speed):
+        self.heading = heading
+        self.speed = speed
+        self.draw_compass()
+
+    def draw_compass(self):
+        self.delete("all")
+        center_x = self.size // 2
+        center_y = self.size // 2
+        radius = self.size // 2 - 10
+
+        # Draw compass circle
+        self.create_oval(10, 10, self.size - 10, self.size - 10, outline="black", width=2)
+        self.create_oval(center_x - 5, center_y - 5, center_x + 5, center_y + 5, fill="black")
+
+        # Draw cardinal directions
+        self.create_text(center_x, 20, text="N", font=("Arial", 12, "bold"))
+        self.create_text(center_x, self.size - 20, text="S", font=("Arial", 12, "bold"))
+        self.create_text(20, center_y, text="W", font=("Arial", 12, "bold"))
+        self.create_text(self.size - 20, center_y, text="E", font=("Arial", 12, "bold"))
+
+        # Set minimum arrow length
+        min_arrow_length = 20
+
+        # Calculate arrow length based on velocity
+        arrow_length = min_arrow_length + (self.speed / self.max_speed) * (radius - min_arrow_length)
+
+        # Calculate arrow end point
+        arrow_end_x = center_x + arrow_length * math.sin(math.radians(self.heading))
+        arrow_end_y = center_y - arrow_length * math.cos(math.radians(self.heading))
+
+        # Draw velocity arrow
+        self.create_line(center_x, center_y, arrow_end_x, arrow_end_y, fill="red", arrow="last", width=4)
 
 root = tk.Tk()
 ui = TelemetryUI(root)
