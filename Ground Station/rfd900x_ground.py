@@ -2,9 +2,13 @@ import time
 import logging
 from pymavlink import mavutil
 from data_writer_ground import get_next_filename, write_data_to_csv
+from flask import Flask, jsonify, request
+from threading import Thread
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
+
+app = Flask(__name__)
 
 # Configure the serial connection
 serial_port = 'COM6'  # Replace with the appropriate COM port
@@ -24,9 +28,13 @@ write_data_to_csv(dict(zip(header, header)), filename)
 data = {}
 received_vectors = 0
 
+# Global variables to store the most recent data and heartbeat status
+most_recent_data = {}
+most_recent_heartbeat_status = "OK"
+
 # Callback function to handle received messages
 def handle_message(msg):
-    global data, received_vectors
+    global most_recent_data, data, received_vectors
 
     if msg.get_type() == 'HEARTBEAT':
         logging.debug("Heartbeat received!")
@@ -39,30 +47,40 @@ def handle_message(msg):
         # Vectors can only contain 3 values, so we need to keep track of which vector we are receiving
         if received_vectors == 0:
             data['Timestamp'] = msg.time_usec
-            data['Accelerometer X (m/s^2)'] = msg.x
-            data['Accelerometer Y (m/s^2)'] = msg.y
-            data['Accelerometer Z (m/s^2)'] = msg.z
+            data['Accelerometer_X'] = msg.x
+            data['Accelerometer_Y'] = msg.y
+            data['Accelerometer_Z'] = msg.z
         elif received_vectors == 1:
-            data['Gyroscope X (rad/s)'] = msg.x
-            data['Gyroscope Y (rad/s)'] = msg.y
-            data['Gyroscope Z (rad/s)'] = msg.z
+            data['Gyroscope_X'] = msg.x
+            data['Gyroscope_Y'] = msg.y
+            data['Gyroscope_Z'] = msg.z
         elif received_vectors == 2:
-            data['Humidity (%)'] = msg.x
-            data['Pressure (mbar)'] = msg.y
-            data['Temperature from Humidity (C)'] = msg.z
+            data['Humidity'] = msg.x
+            data['Pressure'] = msg.y
+            data['Temperature_Humidity'] = msg.z
         elif received_vectors == 3:
-            data['Temperature from Pressure (C)'] = msg.x
-            data['Thermocouple Temperature (C)'] = msg.y
+            data['Temperature_Pressure'] = msg.x
+            data['Temperature_Thermocouple'] = msg.y
+            data['Latitude'] = msg.z
+        elif received_vectors == 4:
+            data['Longitude'] = msg.x
+            data['Altitude'] = msg.y
+            data['Speed'] = msg.z
+        elif received_vectors == 5:
+            data['Heading'] = msg.x
 
         received_vectors += 1
 
         # Check if all four vectors have been received
-        if received_vectors == 4:
+        if received_vectors == 6:
             # Record the assembled data to CSV file
             logging.info(f"Data received: {data}")
             write_data_to_csv(data, filename)
             received_vectors = 0
             
+            # Update the most recent data
+            most_recent_data = data
+
             # Reset the data dictionary for the next set of vectors
             data = {}
 
@@ -71,11 +89,12 @@ def handle_message(msg):
 
 # Main loop
 def main():
+    global most_recent_data, most_recent_heartbeat_status
+
     heartbeat_timeout = 5  # Heartbeat timeout in seconds
     last_heartbeat_time = time.time()
     heartbeat_warning_timeout = 10  # Heartbeat warning timeout in seconds
-    last_heartbeat_warning = time.time()
-    heartbeat_status = "OK"
+    last_heartbeat_warning_time = time.time()
 
     while True:
         try:
@@ -84,7 +103,7 @@ def main():
             if msg:
                 if msg.get_type() == 'HEARTBEAT':
                     last_heartbeat_time = time.time()
-                    heartbeat_status = "OK"
+                    most_recent_heartbeat_status = "OK"
                 handle_message(msg)
             else:
                 logging.debug("No message received.")
@@ -94,10 +113,10 @@ def main():
             if current_time - last_heartbeat_time > heartbeat_timeout:
                 # Handle the heartbeat timeout condition here
                 # For example, you can reconnect, send a request for heartbeat, or perform any other necessary actions
-                heartbeat_status = "TIMEOUT"
-                if current_time - last_heartbeat_warning > heartbeat_warning_timeout:
+                most_recent_heartbeat_status = "TIMEOUT"
+                if current_time - last_heartbeat_warning_time > heartbeat_warning_timeout:
                     logging.info(f"Heartbeat timeout! No heartbeat received for {round(current_time-last_heartbeat_time, 0)} seconds.")
-                    last_heartbeat_warning = current_time
+                    last_heartbeat_warning_time = current_time
 
         except KeyboardInterrupt:
             logging.info("Keyboard interrupt received. Exiting...")
@@ -112,5 +131,39 @@ def main():
     # Close the MAVLink connection when done
     mav.close()
 
+# API route to get the most recent data
+@app.route('/api/data', methods=['GET'])
+def get_most_recent_data():
+    global most_recent_data, most_recent_heartbeat_status
+    response_data = {
+        'Timestamp': most_recent_data.get('Timestamp', 0),
+        'Accelerometer_X': most_recent_data.get('Accelerometer_X', 0),
+        'Accelerometer_Y': most_recent_data.get('Accelerometer_Y', 0),
+        'Accelerometer_Z': most_recent_data.get('Accelerometer_Z', 0),
+        'Gyroscope_X': most_recent_data.get('Gyroscope_X', 0),
+        'Gyroscope_Y': most_recent_data.get('Gyroscope_Y', 0),
+        'Gyroscope_Z': most_recent_data.get('Gyroscope_Z', 0),
+        'Humidity': most_recent_data.get('Humidity', 0),
+        'Pressure': most_recent_data.get('Pressure', 0),
+        'Temperature_Humidity': most_recent_data.get('Temperature_Humidity', 0),
+        'Temperature_Pressure': most_recent_data.get('Temperature_Pressure', 0),
+        'Temperature_Thermocouple': most_recent_data.get('Temperature_Thermocouple', 0),
+        'Latitude': most_recent_data.get('Latitude', 0),
+        'Longitude': most_recent_data.get('Longitude', 0),
+        'Altitude': most_recent_data.get('Altitude', 0),
+        'Speed': most_recent_data.get('Speed', 0),
+        'Heading': most_recent_data.get('Heading', 0),
+        'Heartbeat_Status': most_recent_heartbeat_status
+    }
+    logging.info(f"Data Sent: {response_data}")
+    return response_data
+
+def run_flask_app():
+    app.run()
+
 if __name__ == "__main__":
+    # Start the Flask app in a separate thread
+    flask_thread = Thread(target=run_flask_app)
+    flask_thread.start()
+
     main()

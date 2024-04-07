@@ -1,7 +1,6 @@
 import time
 import random
 import logging
-import threading
 from pymavlink import mavutil
 
 # Configure logging
@@ -14,7 +13,9 @@ baud_rate = 57600  # Set the baud rate according to your RFD900x configuration
 # Create a MAVLink connection
 mav = mavutil.mavlink_connection(serial_port, baud=baud_rate)
 
+main_interval = 1  # Time in seconds to wait between iterations of the main loop
 heartbeat_interval = 1  # Interval in seconds for sending heartbeat messages
+transmit_interval = 5  # Interval in seconds for transmitting data
 
 # Function to send a heartbeat
 def send_heartbeat():
@@ -41,33 +42,57 @@ def send_heartbeat():
     mav.mav.send(heartbeat_msg)
     logging.info("Heartbeat message sent.")
 
-# Function to send data
-def send_data(data):
+# Function to send sample data
+def send_sample_data():
+    # Create sample data
     timestamp = int(time.time() * 1000) % (2**32)
-    data_list = list(data.values())
-    num_vectors = (len(data_list) + 2) // 3  # Calculate the number of vectors needed
-    
-    for i in range(num_vectors):
-        start_index = i * 3
-        end_index = min(start_index + 3, len(data_list))
-        vector_data = data_list[start_index:end_index]
+    acc_x = random.uniform(-10, 10)
+    acc_y = random.uniform(-10, 10)
+    acc_z = random.uniform(-10, 10)
+    gyro_x = random.uniform(-5, 5)
+    gyro_y = random.uniform(-5, 5)
+    gyro_z = random.uniform(-5, 5)
+    humidity = random.uniform(20, 80)
+    pressure = random.uniform(900, 1100)
+    temp_humidity = random.uniform(10, 40)
+    temp_pressure = random.uniform(10, 40)
+    thermocouple_temp = random.uniform(10, 40)
 
-        # Pad the vector with zeros if it has less than 3 elements
-        while len(vector_data) < 3:
-            vector_data.append(0.0)
+    # Create and send sample data using MAVLink_debug_vect_message
+    data = [acc_x, acc_y, acc_z, gyro_x, gyro_y, gyro_z, humidity, pressure, temp_humidity, temp_pressure, thermocouple_temp]
+    mav.mav.debug_vect_send(
+        name=b'SensorData',
+        time_usec=timestamp,
+        x=data[0],
+        y=data[1],
+        z=data[2]
+    )
+    mav.mav.debug_vect_send(
+        name=b'SensorData',
+        time_usec=timestamp,
+        x=data[3],
+        y=data[4],
+        z=data[5]
+    )
+    mav.mav.debug_vect_send(
+        name=b'SensorData',
+        time_usec=timestamp,
+        x=data[6],
+        y=data[7],
+        z=data[8]
+    )
+    mav.mav.debug_vect_send(
+        name=b'SensorData',
+        time_usec=timestamp,
+        x=data[9],
+        y=data[10],
+        z=0.0
+    )
+    logging.info("Sample data sent.")
+    logging.info("")
 
-        mav.mav.debug_vect_send(
-            name=f"Data_Vector_{i}".encode(),
-            time_usec=timestamp,
-            x=vector_data[0],
-            y=vector_data[1],
-            z=vector_data[2]
-        )
-
-    logging.info("Data sent.")
-
-# Communication loop
-def communication_loop():
+# Main loop
+def main():
     while True:
         try:
             # Send a heartbeat message at regular intervals
@@ -83,47 +108,20 @@ def communication_loop():
             else:
                 logging.debug("No message received.")
 
+            # Send data at regular intervals
+            if int(time.time()) % transmit_interval == 0:
+                logging.info("")
+                logging.debug("Sending data...")
+                send_sample_data()
+
         except Exception as e:
             logging.error(f"Error: {e}")
 
         # Wait for a short interval before the next iteration
-        time.sleep(0.1)
+        time.sleep(main_interval)
 
-# Main loop
-def main():
-    # Configure logging
-    logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
-
-    # Test data
-    test_data = {
-        'Timestamp': '2023-06-08 12:34:56',
-        'Accelerometer_X': 1.23,
-        'Accelerometer_Y': 4.56,
-        'Accelerometer_Z': 7.89,
-        'Gyroscope_X': 10.11,
-        'Gyroscope_Y': 12.13,
-        'Gyroscope_Z': 14.15,
-        'Humidity': 50.0,
-        'Pressure': 1013.25,
-        'Temperature_Humidity': 25.5,
-        'Temperature_Pressure': 26.0,
-        'Temperature_Thermocouple': 27.5,
-        'Latitude': '30.2672',
-        'Longitude': '-97.7431',
-        'Altitude': '0.0',
-        'Speed': '0.0',
-        'Heading': '0.0'
-    }
-
-    # Start the communication loop
-    comm_thread = threading.Thread(target=communication_loop)
-    comm_thread.start()
-
-    # Send test data
-    send_data(test_data)
-
-    # Wait for a few seconds before exiting
-    time.sleep(5)
+# Close the MAVLink connection when done
+mav.close()
 
 if __name__ == "__main__":
     main()
