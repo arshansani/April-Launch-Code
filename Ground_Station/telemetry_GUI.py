@@ -4,16 +4,10 @@ import matplotlib
 matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-import folium
-import io
-import base64
-from PIL import Image, ImageTk, ImageDraw
+from PIL import ImageDraw
 import time
 import datetime
-import random
 import messagebox
-import tkinterweb
-import webbrowser
 from tkintermapview import TkinterMapView
 import requests
 from queue import Queue

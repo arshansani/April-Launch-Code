@@ -1,0 +1,7 @@
+matplotlib
+pillow
+tkintermapview
+requests
+pyserial
+pymavlink
+flask
