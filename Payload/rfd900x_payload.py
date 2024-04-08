@@ -55,7 +55,7 @@ def send_data(data):
             vector_data.append(0.0)
 
         mav.mav.debug_vect_send(
-            name=f"Data_Vector_{i}".encode(),
+            name=f"Vector_{i}".encode(),
             time_usec=timestamp,
             x=vector_data[0],
             y=vector_data[1],

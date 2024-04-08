@@ -24,6 +24,12 @@ def main():
     GPIO.output(6, GPIO.LOW)
     logging.info("GPIO 6 set to LOW.")
 
+    # Store the program start time
+    start_time = time.time()
+    mission_duration = 7200 # Terminate mission after this time, Time in seconds, 2 hours
+    cutdown_duration = 60 # Cutdown duration, Time in seconds, 1 minute
+    cutdown_time = 0
+
     # Write Header to CSV
     sensor_filename = dw.get_next_filename('sensor_data_{}.csv')
     header = ['Timestamp', 'Accelerometer X (m/s^2)', 'Accelerometer Y (m/s^2)', 'Accelerometer Z (m/s^2)', 'Gyroscope X (rad/s)', 'Gyroscope Y (rad/s)', 'Gyroscope Z (rad/s)', 'Humidity (%)', 'Pressure (mbar)', 'Temperature from Humidity (C)', 'Temperature from Pressure (C)', 'Thermocouple Temperature (C)', 'Latitude', 'Longitude', 'Altitude (m)', 'Speed (m/s)', 'Heading']
@@ -74,11 +80,17 @@ def main():
             cutdown_status = rfd900x.get_cutdown_status()
 
             # Activate cutdown network if cutdown is triggered
-            if cutdown_status & (not cutdown_activated):
+            if (cutdown_status and (not cutdown_activated)) or ((time.time() - start_time) > mission_duration):
                 logging.warning("Activating cutdown...")
                 GPIO.output(6, GPIO.HIGH)
                 cutdown_activated = True
+                cutdown_time = time.time()
                 logging.warning("Cutdown activated!")
+
+            if cutdown_activated and time.time() - cutdown_time > cutdown_duration:
+                logging.warning("Deactivating cutdown...")
+                GPIO.output(6, GPIO.LOW)
+                logging.warning("Cutdown deactivated!")
 
             # Gather sensor data
             gps_data = gps.get_data()
