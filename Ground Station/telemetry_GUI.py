@@ -42,7 +42,7 @@ class TelemetryUI:
     def __init__(self, master):
         # Initialize constants
         self.time_initial = time.time() # initial time
-        self.ground_station = [31.55548, -97.729272]  # Launch location coordinates
+        self.ground_station = [31.854900, -97.729055]  # Launch location coordinates
 
         # Initialize data variables
         self.mission_duration = 0 # initial mission duration
