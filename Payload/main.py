@@ -3,6 +3,7 @@ import threading
 import logging
 import time
 import random
+import subprocess
 
 # Import your own modules here
 import camera_module as camera
@@ -15,11 +16,51 @@ import gps_module as gps
 # Initialize logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
+def activate_wifi_network():
+    # Disconnect the wireless interface from the connected network
+    subprocess.call(["sudo", "iwconfig", "wlan0", "essid", "off"])
+
+    # Stop the wpa_supplicant service
+    subprocess.call(["sudo", "systemctl", "stop", "wpa_supplicant"])
+
+    # Start the hostapd service to activate the access point mode
+    subprocess.call(["sudo", "hostapd", "/etc/hostapd/hostapd.conf"])
+
+def check_cutdown_status(cutdown_status):
+    if cutdown_status:
+        try:
+            wifi_thread = threading.Thread(target=activate_wifi_network)
+            wifi_thread.start()
+            
+            # Wait for a few seconds to allow the access point to start
+            time.sleep(5)
+            
+            # Verify that the wlan0 interface is in AP mode
+            output = subprocess.check_output(["sudo", "iw", "dev", "wlan0", "info"])
+            if b"type AP" in output:
+                logging.info("Access point mode activated successfully.")
+            else:
+                logging.error("Failed to activate access point mode.")
+            
+            # Check if the "cutdown" network is being broadcast
+            output = subprocess.check_output(["sudo", "iw", "dev", "wlan0", "info"])
+            if b"ssid cutdown" in output:
+                logging.info("Cutdown network is being broadcast.")
+            else:
+                logging.warning("Cutdown network is not being broadcast.")
+            
+        except Exception as e:
+            logging.error(f"Error activating Wi-Fi network: {e}")
+
 def main():
     # Write Header to CSV
     sensor_filename = dw.get_next_filename('sensor_data_{}.csv')
     header = ['Timestamp', 'Accelerometer X (m/s^2)', 'Accelerometer Y (m/s^2)', 'Accelerometer Z (m/s^2)', 'Gyroscope X (rad/s)', 'Gyroscope Y (rad/s)', 'Gyroscope Z (rad/s)', 'Humidity (%)', 'Pressure (mbar)', 'Temperature from Humidity (C)', 'Temperature from Pressure (C)', 'Thermocouple Temperature (C)', 'Latitude', 'Longitude', 'Altitude (m)', 'Speed (m/s)', 'Heading']
     dw.write_data_to_csv(dict(zip(header, header)), sensor_filename)
+
+    # Initialize cutdown status
+    cutdown_status = False
+    network_active = False
 
     # Record in 15-minute segments for a total of 3 hours, ensuring at least 1 GB of free space
     # Start video recording in a separate thread
@@ -32,11 +73,42 @@ def main():
     comm_thread = threading.Thread(target=rfd900x.communication_loop)
     comm_thread.start()
 
+    # Initialize sensor_data dictionary
+    sensor_data = {
+        'Timestamp': '',
+        'Accelerometer_X': '',
+        'Accelerometer_Y': '',
+        'Accelerometer_Z': '',
+        'Gyroscope_X': '',
+        'Gyroscope_Y': '',
+        'Gyroscope_Z': '',
+        'Humidity': '',
+        'Pressure': '',
+        'Temperature_Humidity': '',
+        'Temperature_Pressure': '',
+        'Temperature_Thermocouple': '',
+        'Latitude': '',
+        'Longitude': '',
+        'Altitude': '',
+        'Speed': '',
+        'Heading': ''
+    }
+
     # Print a message to the console
     logging.info("System Initialized...")
 
     try:
         while True:
+            # Check cutdown status
+            cutdown_status = rfd900x.get_cutdown_status()
+
+            # Activate cutdown network if cutdown is triggered
+            if cutdown_status & (not network_active):
+                logging.warning("Activating cutdown network...")
+                check_cutdown_status(cutdown_status)
+                network_active = True
+                logging.warning("Cutdown network activated!")
+
             # Gather sensor data
             gps_data = gps.get_data()
 

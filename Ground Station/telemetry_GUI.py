@@ -279,7 +279,8 @@ class TelemetryUI:
 
     def initiate_cutdown(self):
         # Implement the logic to initiate the cutdown
-        print("Cutdown initiated!")
+        response = requests.post('http://localhost:5000/api/cutdown')
+        print(response.text)
         # Add your cutdown implementation here
         self.mission_status_label.config(text="MISSION TERMINATED", foreground="red")
 

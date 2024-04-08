@@ -91,6 +91,21 @@ def handle_message(msg):
     else:
         logging.warning("Unknown message type received: %s", msg.get_type())
 
+# Function to send cutdown signal to the payload
+def send_cutdown():
+    timestamp = int(time.time() * 1000) % (2**32)
+    cutdown = True
+
+    mav.mav.debug_vect_send(
+        name=f"Cutdown".encode(),
+        time_usec=timestamp,
+        x=cutdown,
+        y=0,
+        z=0
+    )
+
+    logging.info("Data sent.")
+
 # API route to get the most recent data
 @app.route('/api/data', methods=['GET'])
 def get_most_recent_data():
@@ -117,6 +132,19 @@ def get_most_recent_data():
     }
     logging.info(f"Data Sent: {response_data}")
     return response_data
+
+# API route to send cutdown signal
+@app.route('/api/cutdown', methods=['POST'])
+def send_cutdown_signal():
+    try:
+        # Send the cutdown signal
+        logging.info("Sending cutdown signal...")
+        send_cutdown()
+        logging.info("Cutdown signal sent successfully.")
+        return jsonify({'message': 'Cutdown signal sent successfully'}), 200
+    except Exception as e:
+        logging.error(f"Error sending cutdown signal: {e}")
+        return jsonify({'error': 'Failed to send cutdown signal'}), 500
 
 def run_flask_app():
     app.run()

@@ -12,6 +12,7 @@ baud_rate = 57600  # Set the baud rate according to your RFD900x configuration
 mav = mavutil.mavlink_connection(serial_port, baud=baud_rate)
 
 heartbeat_interval = 1  # Interval in seconds for sending heartbeat messages
+cutdown_status = False  # Status of the cutdown mechanism
 
 # Function to send a heartbeat
 def send_heartbeat():
@@ -54,7 +55,7 @@ def send_data(data):
             vector_data.append(0.0)
 
         mav.mav.debug_vect_send(
-            name=f"Vector_{i}".encode(),
+            name=f"Data_Vector_{i}".encode(),
             time_usec=timestamp,
             x=vector_data[0],
             y=vector_data[1],
@@ -65,6 +66,7 @@ def send_data(data):
 
 # Communication loop
 def communication_loop():
+    global cutdown_status
     while True:
         try:
             # Send a heartbeat message at regular intervals
@@ -75,6 +77,12 @@ def communication_loop():
             # Check if a message has been received
             msg = mav.recv_match(blocking=False)
             if msg:
+                if msg.get_type() == "DEBUG_VECT":
+                    logging.info(f"Received debug vector: {msg.name}")
+                    if msg.name == "Cutdown":
+                        logging.warning("Activating cutdown mechanism...")
+                        cutdown_status = True
+                        logging.warning("Cutdown mechanism activated!")
                 logging.info(f"Received message: {msg.get_type()}")
                 logging.debug(f"Message contents: {msg.to_dict()}")
             else:
@@ -85,6 +93,11 @@ def communication_loop():
 
         # Wait for a short interval before the next iteration
         time.sleep(1)
+
+# Function to get the status of the cutdown mechanism
+def get_cutdown_status():
+    global cutdown_status
+    return cutdown_status
 
 # Main loop
 def main():
