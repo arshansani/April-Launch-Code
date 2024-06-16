@@ -68,7 +68,7 @@ def main():
         'Longitude': '',
         'Altitude': '',
         'Speed': '',
-        'Heading': ''
+        'Heading': '',
     }
 
     # Print a message to the console

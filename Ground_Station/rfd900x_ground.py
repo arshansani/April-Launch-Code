@@ -9,10 +9,10 @@ from threading import Thread
 logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
 
 app = Flask(__name__)
-
+8
 # Configure the serial connection
-serial_port = 'COM6'  # Replace with the appropriate COM port
-baud_rate = 57600  # Set the baud rate according to your RFD900x configuration
+serial_port = 'COM5'  # Replace with the appropriate COM port
+baud_rate = 9600  # Set the baud rate according to your RFD900x configuration
 
 # Create a MAVLink connection
 mav = mavutil.mavlink_connection(serial_port, baud=baud_rate)
@@ -40,7 +40,7 @@ def handle_message(msg):
         logging.debug("Heartbeat received!")
         logging.debug("Message contents: %s", msg.to_dict())
     elif msg.get_type() == 'DEBUG_VECT':
-        logging.info(f"Debug vector received! {msg.name}")
+        logging.debug(f"Debug vector received! {msg.name}")
         logging.debug("Message contents: %s", msg.to_dict())
 
         # Extract the relevant data from the message
@@ -73,12 +73,14 @@ def handle_message(msg):
         elif msg.name == "Vector_5":
             data['Speed'] = msg.x
             data['Heading'] = msg.y
+            data['RSSI'] = msg.z
             received_vectors = 6
 
         # Check if all four vectors have been received
         if received_vectors == 6:
             # Record the assembled data to CSV file
-            logging.info(f"Data received: {data}")
+            logging.info(f"Data Received!")
+            logging.debug(f"Received Data contents: {data}")
             write_data_to_csv(data, filename)
             received_vectors = 0
             
@@ -104,7 +106,7 @@ def send_cutdown():
         z=0
     )
 
-    logging.info("Data sent.")
+    logging.info("Cutdown sent.")
 
 # API route to get the most recent data
 @app.route('/api/data', methods=['GET'])
@@ -128,9 +130,11 @@ def get_most_recent_data():
         'Altitude': most_recent_data.get('Altitude', 0),
         'Speed': most_recent_data.get('Speed', 0),
         'Heading': most_recent_data.get('Heading', 0),
-        'Heartbeat_Status': most_recent_heartbeat_status
+        'Heartbeat_Status': most_recent_heartbeat_status,
+        'RSSI' : most_recent_data.get('RSSI', 0)
     }
-    logging.info(f"Data Sent: {response_data}")
+    logging.info(f"Data Sent!")
+    logging.debug(f"Sent Data Contents: {response_data}")
     return response_data
 
 # API route to send cutdown signal
@@ -168,7 +172,7 @@ def main():
                     most_recent_heartbeat_status = "OK"
                 handle_message(msg)
             else:
-                logging.debug("No message received.")
+                logging.debug("No response received.")
 
             # Check for heartbeat timeout
             current_time = time.time()

@@ -18,6 +18,7 @@ _URL = "http://localhost:5000/api/data"
 data_queue = Queue()
 
 def api_call_thread():
+    # Thread function to make API calls and retrieve data.
     while True:
         try:
             response = requests.get(_URL)
@@ -34,6 +35,8 @@ def api_call_thread():
 
 class TelemetryUI:
     def __init__(self, master):
+        # Initialize the TelemetryUI class.
+    
         # Initialize constants
         self.time_initial = time.time() # initial time
         self.ground_station = [31.854900, -97.729055]  # Launch location coordinates
@@ -56,6 +59,7 @@ class TelemetryUI:
         self.speed = 0
         self.heading = 0
         self.heartbeat = "TIMEOUT"
+        self.rssi = 0
 
         # Initialize variables
         self.polling_rate = 1000  # Polling rate in ms
@@ -127,6 +131,7 @@ class TelemetryUI:
         self.poll_data()
 
     def pull_data(self):
+        # Pull data from the data queue and update data variables.
         while not data_queue.empty():
             data = data_queue.get()
 
@@ -145,6 +150,7 @@ class TelemetryUI:
             self.speed = round(data["Speed"],2)
             self.heading = round(data["Heading"],2)
             self.heartbeat = data["Heartbeat_Status"]
+            self.rssi = data["RSSI"]
 
         # Implement the logic to pull data from the rfd900x_ground.py
         # Generate random data for demonstration purposes
@@ -166,10 +172,11 @@ class TelemetryUI:
         '''
 
     def update_raw_display(self):
-        # ground_station data for demonstration
+        # Update the raw data display with the latest data.
         self.raw_data_text.delete(1.0, tk.END)
         self.raw_data_text.insert(tk.END, f"Mission Duration (mins): {round(self.mission_duration,1)}\n")
         self.raw_data_text.insert(tk.END, f"Time: {datetime.datetime.fromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%S')}\n")
+        self.raw_data_text.insert(tk.END, f"RSSI: {self.rssi} dBi\n")
         self.raw_data_text.insert(tk.END, f"Acceleration: {self.acceleration}\n")
         self.raw_data_text.insert(tk.END, f"Gyroscope: {self.gyroscope}\n")
         self.raw_data_text.insert(tk.END, f"Humidity (Internal): {self.humidity}%\n")
@@ -182,6 +189,7 @@ class TelemetryUI:
         self.raw_data_text.insert(tk.END, f"Heading: {round(self.heading,2)}°\n")
     
     def update_map_display(self):
+        # Update the map display with the latest marker positions.
         try:
             # Update the marker positions
             if self.ground_station_marker is not None:
@@ -193,6 +201,7 @@ class TelemetryUI:
             print(f"Error updating map display: {str(e)}")
 
     def update_altitude_log_display(self):
+        # Update the altitude log display with the latest altitude data.
         # Clear the previous plot
         self.altitude_plot.clear()
 
@@ -206,6 +215,7 @@ class TelemetryUI:
         self.altitude_canvas.draw()
 
     def update_polling_rate(self):
+        # Update the polling rate based on the user input.
         try:
             self.polling_rate = int(self.polling_rate_entry.get())*1000
             self.polling_rate_value.config(text=str(self.polling_rate / 1000))
@@ -213,6 +223,7 @@ class TelemetryUI:
             pass
 
     def create_map(self):
+        # Create the map with markers for the ground station and balloon.
         try:
             # Calculate the center coordinates between ground_station and coordinates
             center_lat = (self.ground_station[0] + self.coordinates[0]) / 2
@@ -230,27 +241,9 @@ class TelemetryUI:
         except Exception as e:
             print(f"Error creating map: {str(e)}")
 
-    def calculate_map_coordinates(self, location):
-        # Implement the logic to calculate the coordinates on the map based on the location
-        # Replace with the appropriate calculations based on the Texas map dimensions and coordinates
-        # Example implementation:
-        map_width = 800
-        map_height = 600
-        lat_range = (25.0, 37.0)  # Approximate latitude range of Texas
-        lon_range = (-107.0, -93.0)  # Approximate longitude range of Texas
-
-        lat, lon = location
-        x = int((lon - lon_range[0]) / (lon_range[1] - lon_range[0]) * map_width)
-        y = int((lat_range[1] - lat) / (lat_range[1] - lat_range[0]) * map_height)
-        return x, y
-
-    def draw_marker(self, image, x, y, color):
-        # Implement the logic to draw a marker on the map image at the specified coordinates
-        draw = ImageDraw.Draw(image)
-        marker_size = 10
-        draw.ellipse((x - marker_size, y - marker_size, x + marker_size, y + marker_size), fill=color)
-
     def poll_data(self):
+        # Poll data and update displays periodically.
+
         # Update data
         self.pull_data()
 
@@ -267,6 +260,7 @@ class TelemetryUI:
         self.master.after(self.polling_rate, self.poll_data)
 
     def confirm_cutdown(self):
+        # Confirm cutdown action with a dialog box.
         confirm = messagebox.askyesno("Warning: Confirm Cutdown", "Are you sure you want to initiate the cutdown?")
         if confirm == True:
             self.initiate_cutdown()

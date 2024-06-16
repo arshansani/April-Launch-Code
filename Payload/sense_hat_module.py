@@ -27,18 +27,6 @@ def get_accelerometer_data():
         logging.error(f"Error reading accelerometer: {e}")
         return {"x": "", "y": "", "z": ""}
 
-# DEPRACATED, GIVES BAD READINGS
-def get_compass_data():
-    if not sense_hat_available:
-        return ""
-    try:
-        # Get compass data in degrees
-        north = sense.get_compass()
-        return {north}
-    except Exception as e:
-        logging.error(f"Error reading compass: {e}")
-        return ""
-
 def get_gyroscope_data():
     if not sense_hat_available:
         return {"x": "", "y": "", "z": ""}
@@ -53,22 +41,6 @@ def get_gyroscope_data():
     except Exception as e:
         logging.error(f"Error reading gyroscope: {e}")
         return {"x": "", "y": "", "z": ""}
-
-# DEPRACATED, GIVES BAD READINGS
-def get_orientation_data():
-    if not sense_hat_available:
-        return ""
-    try:
-        # Get orientation data in degrees
-        gyro = sense.get_orientation_degrees()
-        # Format to two decimal places
-        pitch = round(gyro["pitch"], 2)  
-        roll = round(gyro["roll"], 2)
-        yaw = round(gyro["yaw"], 2)
-        return {"pitch": [pitch], "roll": roll, "yaw": yaw}
-    except Exception as e:
-        logging.error(f"Error reading gyroscope: {e}")
-        return ""
 
 def get_humidity():
     if not sense_hat_available:
